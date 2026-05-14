@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deteksi Wajah & Tangan - AI Voice</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --card: #141420;
+            --border: #252540;
+            --text: #e0e0f0;
+            --accent: #6c5ce7;
+            --accent2: #00cec9;
+            --happy: #ffd32a;
+            --sad: #74b9ff;
+            --angry: #ff6b6b;
+            --surprised: #a29bfe;
+            --fearful: #fdcb6e;
+            --disgusted: #55efc4;
+            --neutral: #b2bec3;
+            --fist: #ff7675;
+            --open: #55efc4;
+            --peace: #74b9ff;
+            --thumbs: #ffd32a;
+            --point: #a29bfe;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 20px 16px 8px;
+            width: 100%;
+            max-width: 800px;
+        }
+        .header h1 {
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+        .header .subtitle {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        /* Main container */
+        .main-container {
+            position: relative;
+            width: 100%;
+            max-width: 720px;
+            margin: 8px auto;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 20px 60px rgba(108, 92, 231, 0.2), 0 0 0 2px var(--border);
+            aspect-ratio: 4/3;
+        }
+        @media (max-width: 600px) {
+            .main-container {
+                border-radius: 12px;
+                aspect-ratio: 3/4;
+            }
+        }
+
+        /* Video & Canvas */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+
+        /* Status overlay di atas video */
+        .status-overlay {
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            letter-spacing: 0.3px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1.5px solid rgba(255, 255, 255, 0.2);
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.3s ease;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+        @keyframes popIn {
+            0% {
+                transform: scale(0.7);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        .badge-face {
+            background: rgba(20, 20, 40, 0.85);
+        }
+        .badge-hand {
+            background: rgba(20, 20, 40, 0.85);
+        }
+        .badge-active {
+            border-color: var(--accent2) !important;
+            box-shadow: 0 0 20px rgba(0, 206, 201, 0.4);
+        }
+
+        /* Info panel */
+        .info-panel {
+            width: 100%;
+            max-width: 720px;
+            margin: 10px auto;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 0 8px;
+        }
+        .info-card {
+            flex: 1;
+            min-width: 140px;
+            background: var(--card);
+            border: 1.5px solid var(--border);
+            border-radius: 16px;
+            padding: 14px 16px;
+            text-align: center;
+            transition: all 0.4s ease;
+        }
+        .info-card.active-card {
+            border-color: var(--accent2);
+            box-shadow: 0 0 25px rgba(0, 206, 201, 0.25);
+            animation: glowPulse 2s ease-in-out infinite;
+        }
+        @keyframes glowPulse {
+            0%,
+            100% {
+                box-shadow: 0 0 25px rgba(0, 206, 201, 0.25);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(0, 206, 201, 0.5);
+            }
+        }
+        .info-card .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #888;
+            margin-bottom: 6px;
+        }
+        .info-card .value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+        .info-card .emoji {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* Voice indicator */
+        .voice-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: 30px;
+            background: var(--card);
+            border: 1.5px solid var(--border);
+            margin: 4px auto;
+            max-width: 720px;
+            width: fit-content;
+            transition: all 0.3s ease;
+        }
+        .voice-indicator.speaking {
+            border-color: var(--accent2);
+            background: rgba(0, 206, 201, 0.1);
+            animation: glowPulse 1s ease-in-out infinite;
+        }
+        .voice-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #555;
+            transition: all 0.2s ease;
+        }
+        .voice-indicator.speaking .voice-dot {
+            background: var(--accent2);
+            box-shadow: 0 0 12px var(--accent2);
+            animation: dotPulse 0.6s ease-in-out infinite;
+        }
+        @keyframes dotPulse {
+            0%,
+            100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.8);
+            }
+        }
+        .voice-text {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #aaa;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: color 0.3s;
+        }
+        .voice-indicator.speaking .voice-text {
+            color: #fff;
+        }
+
+        /* Start button */
+        .btn-start {
+            display: inline-block;
+            padding: 14px 40px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--accent), #5a4bd1);
+            color: #fff;
+            box-shadow: 0 8px 30px rgba(108, 92, 231, 0.4);
+            transition: all 0.3s ease;
+            margin: 10px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(108, 92, 231, 0.6);
+        }
+        .btn-start:active {
+            transform: scale(0.96);
+        }
+        .btn-start:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-start .spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .btn-start.loading .spinner {
+            display: inline-block;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Toast / pesan */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #1a1a2e;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            z-index: 999;
+            border: 1.5px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .status-badge {
+                font-size: 0.7rem;
+                padding: 6px 12px;
+            }
+            .info-card {
+                padding: 10px 8px;
+            }
+            .info-card .value {
+                font-size: 0.9rem;
+            }
+            .info-card .emoji {
+                font-size: 1.5rem;
+            }
+            .voice-text {
+                font-size: 0.75rem;
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <h1>🧠 Deteksi Wajah & Tangan AI</h1>
+        <p class="subtitle">Ekspresi wajah & gerakan tangan · Suara Bahasa Indonesia</p>
+    </div>
+
+    <!-- Main Video Container -->
+    <div class="main-container" id="mainContainer">
+        <div class="video-wrapper">
+            <video id="video" playsinline autoplay muted></video>
+            <canvas id="overlay"></canvas>
+        </div>
+        <!-- Status badges -->
+        <div class="status-overlay" id="statusOverlay">
+            <span class="status-badge badge-face" id="badgeFace" style="display:none;">😐 Menunggu</span>
+            <span class="status-badge badge-hand" id="badgeHand" style="display:none;">✋ Menunggu</span>
+        </div>
+    </div>
+
+    <!-- Info cards -->
+    <div class="info-panel" id="infoPanel">
+        <div class="info-card" id="cardFace">
+            <span class="emoji">😐</span>
+            <div class="label">Ekspresi Wajah</div>
+            <div class="value" id="valFace">Belum terdeteksi</div>
+        </div>
+        <div class="info-card" id="cardHand">
+            <span class="emoji">✋</span>
+            <div class="label">Gerakan Tangan</div>
+            <div class="value" id="valHand">Belum terdeteksi</div>
+        </div>
+    </div>
+
+    <!-- Voice indicator -->
+    <div class="voice-indicator" id="voiceIndicator">
+        <div class="voice-dot"></div>
+        <span class="voice-text" id="voiceText">Siap mendeteksi...</span>
+    </div>
+
+    <!-- Start button -->
+    <button class="btn-start" id="btnStart" onclick="startApp()">
+        <span class="spinner"></span> 🎤 MULAI DETEKSI
+    </button>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Scripts -->
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"
+    crossorigin="anonymous">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js" crossorigin="anonymous">
+    </script>
+
+    <!-- face-api.js -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js">
+    </script>
+
+    <script>
+        (function() {
+            // ==================== DOM ELEMENTS ====================
+            const video = document.getElementById('video');
+            const overlay = document.getElementById('overlay');
+            const ctx = overlay.getContext('2d');
+            const badgeFace = document.getElementById('badgeFace');
+            const badgeHand = document.getElementById('badgeHand');
+            const cardFace = document.getElementById('cardFace');
+            const cardHand = document.getElementById('cardHand');
+            const valFace = document.getElementById('valFace');
+            const valHand = document.getElementById('valHand');
+            const voiceIndicator = document.getElementById('voiceIndicator');
+            const voiceText = document.getElementById('voiceText');
+            const btnStart = document.getElementById('btnStart');
+            const toast = document.getElementById('toast');
+            const statusOverlay = document.getElementById('statusOverlay');
+
+            // ==================== STATE ====================
+            let isRunning = false;
+            let videoReady = false;
+            let modelsLoaded = false;
+            let handsInstance = null;
+            let lastVideoTime = -1;
+
+            // Deteksi terkini
+            let currentExpression = null; // { name, probability, startTime }
+            let currentGesture = null; // { name, startTime }
+            let lastSpokenFace = { phrase: '', time: 0 };
+            let lastSpokenHand = { phrase: '', time: 0 };
+            const FACE_COOLDOWN = 4000; // ms
+            const HAND_COOLDOWN = 4000; // ms
+            const STABILITY_THRESHOLD = 800; // ms deteksi harus stabil
+
+            // Riwayat untuk stabilitas
+            let expressionHistory = []; // [{name, time}]
+            let gestureHistory = []; // [{name, time}]
+            const HISTORY_WINDOW = 1500; // ms
+
+            // Face detection interval
+            let faceDetectionInterval = null;
+
+            // ==================== EKSPRESI & GESTURE MAP ====================
+            const expressionConfig = {
+                happy: {
+                    phrase: 'Kamu Lagi Senang Ya',
+                    emoji: '😊',
+                    color: '#ffd32a',
+                    badgeColor: '#ffd32a'
+                },
+                sad: {
+                    phrase: 'Kamu Lagi Sedih Ya',
+                    emoji: '😢',
+                    color: '#74b9ff',
+                    badgeColor: '#74b9ff'
+                },
+                angry: {
+                    phrase: 'Kamu Lagi Marah Ya',
+                    emoji: '😠',
+                    color: '#ff6b6b',
+                    badgeColor: '#ff6b6b'
+                },
+                surprised: {
+                    phrase: 'Kamu Lagi Terkejut Ya',
+                    emoji: '😲',
+                    color: '#a29bfe',
+                    badgeColor: '#a29bfe'
+                },
+                fearful: {
+                    phrase: 'Kamu Lagi Takut Ya',
+                    emoji: '😨',
+                    color: '#fdcb6e',
+                    badgeColor: '#fdcb6e'
+                },
+                disgusted: {
+                    phrase: 'Kamu Lagi Jijik Ya',
+                    emoji: '🤢',
+                    color: '#55efc4',
+                    badgeColor: '#55efc4'
+                },
+                neutral: {
+                    phrase: 'Wajah Kamu Netral',
+                    emoji: '😐',
+                    color: '#b2bec3',
+                    badgeColor: '#b2bec3'
+                },
+            };
+
+            const gestureConfig = {
+                fist: {
+                    phrase: 'Kamu Sedang Menggenggam',
+                    emoji: '✊',
+                    color: '#ff7675',
+                    badgeColor: '#ff7675'
+                },
+                open_hand: {
+                    phrase: 'Kamu Membuka Tangan',
+                    emoji: '🖐️',
+                    color: '#55efc4',
+                    badgeColor: '#55efc4'
+                },
+                peace: {
+                    phrase: 'Kamu Membentuk Peace',
+                    emoji: '✌️',
+                    color: '#74b9ff',
+                    badgeColor: '#74b9ff'
+                },
+                thumbs_up: {
+                    phrase: 'Kamu Mengacungkan Jempol',
+                    emoji: '👍',
+                    color: '#ffd32a',
+                    badgeColor: '#ffd32a'
+                },
+                pointing: {
+                    phrase: 'Kamu Menunjuk',
+                    emoji: '☝️',
+                    color: '#a29bfe',
+                    badgeColor: '#a29bfe'
+                },
+                ok_sign: {
+                    phrase: 'Kamu Membentuk OK',
+                    emoji: '👌',
+                    color: '#fd79a8',
+                    badgeColor: '#fd79a8'
+                },
+                rock_on: {
+                    phrase: 'Kamu Metal Ya',
+                    emoji: '🤘',
+                    color: '#e17055',
+                    badgeColor: '#e17055'
+                },
+                three_fingers: {
+                    phrase: 'Kamu Menunjukkan Tiga Jari',
+                    emoji: '🖖',
+                    color: '#6c5ce7',
+                    badgeColor: '#6c5ce7'
+                },
+            };
+
+            // ==================== TOAST ====================
+            let toastTimeout;
+
+            function showToast(msg) {
+                clearTimeout(toastTimeout);
+                toast.textContent = msg;
+                toast.classList.add('show');
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2500);
+            }
+
+            // ==================== VOICE / TTS ====================
+            function speak(phrase) {
+                if (!('speechSynthesis' in window)) {
+                    console.warn('SpeechSynthesis tidak didukung browser ini.');
+                    return;
+                }
+                // Batalkan ucapan sebelumnya jika terlalu panjang antriannya
+                if (window.speechSynthesis.speaking && window.speechSynthesis.pending) {
+                    const pending = window.speechSynthesis.pending;
+                    if (pending.length > 2) {
+                        window.speechSynthesis.cancel();
+                    }
+                }
+
+                const utterance = new SpeechSynthesisUtterance(phrase);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.05;
+                utterance.volume = 1;
+
+                // Cari suara Indonesia
+                const voices = window.speechSynthesis.getVoices();
+                const indoVoice = voices.find(v => v.lang.startsWith('id'));
+                if (indoVoice) {
+                    utterance.voice = indoVoice;
+                }
+
+                // Tampilkan indikator suara
+                voiceIndicator.classList.add('speaking');
+                voiceText.textContent = '🔊 ' + phrase;
+
+                utterance.onstart = () => {
+                    voiceIndicator.classList.add('speaking');
+                    voiceText.textContent = '🔊 ' + phrase;
+                };
+                utterance.onend = () => {
+                    voiceIndicator.classList.remove('speaking');
+                    voiceText.textContent = 'Siap mendeteksi...';
+                };
+                utterance.onerror = () => {
+                    voiceIndicator.classList.remove('speaking');
+                    voiceText.textContent = 'Siap mendeteksi...';
+                };
+
+                window.speechSynthesis.speak(utterance);
+            }
+
+            // ==================== FACE DETECTION ====================
+            async function loadFaceModels() {
+                const modelUri = 'https://justadudewhohacks.github.io/face-api.js/models';
+                try {
+                    await faceapi.nets.tinyFaceDetector.loadFromUri(modelUri);
+                    await faceapi.nets.faceExpressionNet.loadFromUri(modelUri);
+                    console.log('✅ Face models loaded');
+                    return true;
+                } catch (err) {
+                    console.error('❌ Gagal load face models:', err);
+                    // Coba alternatif CDN
+                    try {
+                        const altUri =
+                            'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+                        await faceapi.nets.tinyFaceDetector.loadFromUri(altUri);
+                        await faceapi.nets.faceExpressionNet.loadFromUri(altUri);
+                        console.log('✅ Face models loaded from alt CDN');
+                        return true;
+                    } catch (err2) {
+                        console.error('❌ Gagal total load face models:', err2);
+                        return false;
+                    }
+                }
+            }
+
+            async function detectFace() {
+                if (!videoReady || !isRunning) return null;
+                if (video.readyState < 2) return null;
+
+                try {
+                    const options = new faceapi.TinyFaceDetectorOptions({
+                        inputSize: 320,
+                        scoreThreshold: 0.5,
+                    });
+                    const result = await faceapi
+                        .detectSingleFace(video, options)
+                        .withFaceExpressions();
+
+                    if (result && result.expressions) {
+                        const expressions = result.expressions;
+                        // Cari ekspresi dengan probabilitas tertinggi
+                        let topExpr = 'neutral';
+                        let topProb = expressions['neutral'] || 0;
+                        for (const [expr, prob] of Object.entries(expressions)) {
+                            if (prob > topProb) {
+                                topProb = prob;
+                                topExpr = expr;
+                            }
+                        }
+                        // Threshold minimum
+                        if (topProb < 0.35) topExpr = 'neutral';
+
+                        return {
+                            expression: topExpr,
+                            probability: topProb,
+                            box: result.detection.box,
+                            allExpressions: expressions,
+                        };
+                    }
+                    return null;
+                } catch (err) {
+                    // Silent fail untuk deteksi per frame
+                    return null;
+                }
+            }
+
+            // ==================== HAND DETECTION (MediaPipe) ====================
+            async function initHands() {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const Hands = window.Hands;
+                        if (!Hands) {
+                            reject(new Error('MediaPipe Hands tidak tersedia'));
+                            return;
+                        }
+                        const hands = new Hands({
+                            locateFile: (file) =>
+                                `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`,
+                        });
+
+                        hands.setOptions({
+                            maxNumHands: 2,
+                            modelComplexity: 1,
+                            minDetectionConfidence: 0.7,
+                            minTrackingConfidence: 0.5,
+                        });
+
+                        hands.onResults(onHandResults);
+                        resolve(hands);
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            }
+
+            function onHandResults(results) {
+                if (!isRunning || !videoReady) return;
+
+                // Update canvas overlay untuk tangan
+                drawHandOverlay(results);
+
+                // Klasifikasi gesture
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const landmarks = results.multiHandLandmarks[0]; // Tangan pertama
+                    const gesture = classifyGesture(landmarks);
+                    updateGestureState(gesture);
+                } else {
+                    updateGestureState(null);
+                }
+            }
+
+            function classifyGesture(landmarks) {
+                if (!landmarks || landmarks.length < 21) return null;
+
+                // Landmark indices:
+                // Thumb:  1(CMC), 2(MCP), 3(IP), 4(TIP)
+                // Index:  5(MCP), 6(PIP), 7(DIP), 8(TIP)
+                // Middle: 9(MCP), 10(PIP), 11(DIP), 12(TIP)
+                // Ring:   13(MCP), 14(PIP), 15(DIP), 16(TIP)
+                // Pinky:  17(MCP), 18(PIP), 19(DIP), 20(TIP)
+                // Wrist: 0
+
+                const wrist = landmarks[0];
+                const thumbTip = landmarks[4];
+                const thumbIP = landmarks[3];
+                const thumbMcp = landmarks[2];
+                const indexTip = landmarks[8];
+                const indexPip = landmarks[6];
+                const middleTip = landmarks[12];
+                const middlePip = landmarks[10];
+                const ringTip = landmarks[16];
+                const ringPip = landmarks[14];
+                const pinkyTip = landmarks[20];
+                const pinkyPip = landmarks[18];
+
+                // Cek ekstensi jari (TIP.y < PIP.y berarti terjulur ke atas)
+                // Gunakan threshold untuk toleransi
+                const threshold = 0.04; // normalized coordinate threshold
+
+                const thumbExtended = thumbTip.y < thumbIP.y - threshold;
+                const indexExtended = indexTip.y < indexPip.y - threshold;
+                const middleExtended = middleTip.y < middlePip.y - threshold;
+                const ringExtended = ringTip.y < ringPip.y - threshold;
+                const pinkyExtended = pinkyTip.y < pinkyPip.y - threshold;
+
+                // Fallback: cek jarak dari wrist
+                const distWristToIndexTip = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y);
+                const distWristToIndexPip = Math.hypot(indexPip.x - wrist.x, indexPip.y - wrist.y);
+                const indexExtendedDist = distWristToIndexTip > distWristToIndexPip * 1.15;
+
+                const distWristToMiddleTip = Math.hypot(middleTip.x - wrist.x, middleTip.y - wrist.y);
+                const distWristToMiddlePip = Math.hypot(middlePip.x - wrist.x, middlePip.y - wrist.y);
+                const middleExtendedDist = distWristToMiddleTip > distWristToMiddlePip * 1.15;
+
+                const distWristToRingTip = Math.hypot(ringTip.x - wrist.x, ringTip.y - wrist.y);
+                const distWristToRingPip = Math.hypot(ringPip.x - wrist.x, ringPip.y - wrist.y);
+                const ringExtendedDist = distWristToRingTip > distWristToRingPip * 1.15;
+
+                const distWristToPinkyTip = Math.hypot(pinkyTip.x - wrist.x, pinkyTip.y - wrist.y);
+                const distWristToPinkyPip = Math.hypot(pinkyPip.x - wrist.x, pinkyPip.y - wrist.y);
+                const pinkyExtendedDist = distWristToPinkyTip > distWristToPinkyPip * 1.15;
+
+                const distWristToThumbTip = Math.hypot(thumbTip.x - wrist.x, thumbTip.y - wrist.y);
+                const distWristToThumbMcp = Math.hypot(thumbMcp.x - wrist.x, thumbMcp.y - wrist.y);
+                const thumbExtendedDist = distWristToThumbTip > distWristToThumbMcp * 1.2;
+
+                // Gabungkan kedua metode (y-compare OR distance-compare)
+                const idxExt = indexExtended || indexExtendedDist;
+                const midExt = middleExtended || middleExtendedDist;
+                const rngExt = ringExtended || ringExtendedDist;
+                const pnkExt = pinkyExtended || pinkyExtendedDist;
+                const thbExt = thumbExtended || thumbExtendedDist;
+
+                const extendedCount = [thbExt, idxExt, midExt, rngExt, pnkExt].filter(Boolean).length;
+
+                // Deteksi OK sign: ujung ibu jari dekat dengan ujung telunjuk
+                const thumbIndexDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                const isOkSign = thumbIndexDist < 0.06 && midExt && rngExt && pnkExt;
+
+                if (isOkSign) return 'ok_sign';
+
+                // Deteksi gestur spesifik
+                if (extendedCount <= 1 && !thbExt && !idxExt && !midExt && !rngExt && !pnkExt) {
+                    return 'fist'; // Semua jari tertekuk
+                }
+                if (extendedCount >= 5) {
+                    return 'open_hand'; // Semua jari terbuka
+                }
+                if (idxExt && midExt && !rngExt && !pnkExt && !thbExt) {
+                    return 'peace'; // Peace sign
+                }
+                if (idxExt && midExt && rngExt && !pnkExt && !thbExt) {
+                    return 'three_fingers'; // Tiga jari
+                }
+                if (thbExt && !idxExt && !midExt && !rngExt && !pnkExt) {
+                    return 'thumbs_up'; // Jempol ke atas
+                }
+                if (idxExt && !midExt && !rngExt && !pnkExt && !thbExt) {
+                    return 'pointing'; // Menunjuk
+                }
+                if (idxExt && pnkExt && !midExt && !rngExt && !thbExt) {
+                    return 'rock_on'; // Rock on / metal
+                }
+                if (idxExt && pnkExt && !midExt && !rngExt && thbExt) {
+                    return 'rock_on'; // Rock on dengan jempol
+                }
+
+                // Default: klasifikasi berdasarkan jumlah jari terbuka
+                if (extendedCount <= 1) return 'fist';
+                if (extendedCount >= 4) return 'open_hand';
+                if (idxExt && midExt && !rngExt && !pnkExt) return 'peace';
+                if (idxExt && !midExt && !rngExt && !pnkExt) return 'pointing';
+
+                return 'open_hand'; // fallback
+            }
+
+            function drawHandOverlay(results) {
+                // Tidak menggambar tangan di sini, akan digambar di render loop
+                // Simpan hasil untuk render loop
+                window._lastHandResults = results;
+            }
+
+            // ==================== STATE UPDATES ====================
+            function updateExpressionState(expressionName) {
+                const now = Date.now();
+
+                // Tambah ke history
+                expressionHistory.push({ name: expressionName, time: now });
+                // Bersihkan history lama
+                expressionHistory = expressionHistory.filter(h => now - h.time < HISTORY_WINDOW);
+
+                // Cek stabilitas: ekspresi harus konsisten dalam window
+                if (expressionHistory.length >= 3) {
+                    const recent = expressionHistory.slice(-5);
+                    const allSame = recent.every(h => h.name === expressionName);
+                    if (!allSame) return; // Belum stabil
+
+                    // Cek apakah ekspresi berubah dari sebelumnya
+                    if (currentExpression && currentExpression.name === expressionName) {
+                        // Ekspresi sama, update waktu
+                        currentExpression.startTime = Math.min(currentExpression.startTime, recent[0].time);
+                    } else {
+                        // Ekspresi baru
+                        currentExpression = { name: expressionName, startTime: recent[0].time };
+                    }
+
+                    // Cek apakah perlu bersuara
+                    const stableDuration = now - currentExpression.startTime;
+                    const timeSinceLastSpeak = now - lastSpokenFace.time;
+                    const phraseChanged = lastSpokenFace.phrase !== (expressionConfig[expressionName]?.phrase ||
+                        '');
+
+                    if (stableDuration >= STABILITY_THRESHOLD &&
+                        (timeSinceLastSpeak >= FACE_COOLDOWN || phraseChanged)) {
+                        const config = expressionConfig[expressionName];
+                        if (config) {
+                            speak(config.phrase);
+                            lastSpokenFace = { phrase: config.phrase, time: now };
+                        }
+                    }
+                }
+
+                // Update UI
+                updateFaceUI(expressionName);
+            }
+
+            function updateGestureState(gestureName) {
+                const now = Date.now();
+
+                if (gestureName) {
+                    gestureHistory.push({ name: gestureName, time: now });
+                } else {
+                    gestureHistory.push({ name: null, time: now });
+                }
+                gestureHistory = gestureHistory.filter(h => now - h.time < HISTORY_WINDOW);
+
+                if (gestureHistory.length >= 4 && gestureName) {
+                    const recent = gestureHistory.slice(-8);
+                    const allSame = recent.every(h => h.name === gestureName);
+                    if (!allSame) {
+                        // Cek apakah tangan hilang
+                        if (!gestureName && currentGesture) {
+                            currentGesture = null;
+                            updateHandUI(null);
+                        }
+                        return;
+                    }
+
+                    if (currentGesture && currentGesture.name === gestureName) {
+                        currentGesture.startTime = Math.min(currentGesture.startTime, recent[0].time);
+                    } else {
+                        currentGesture = { name: gestureName, startTime: recent[0].time };
+                    }
+
+                    const stableDuration = now - currentGesture.startTime;
+                    const timeSinceLastSpeak = now - lastSpokenHand.time;
+                    const phraseChanged = lastSpokenHand.phrase !== (gestureConfig[gestureName]?.phrase || '');
+
+                    if (stableDuration >= STABILITY_THRESHOLD &&
+                        (timeSinceLastSpeak >= HAND_COOLDOWN || phraseChanged)) {
+                        const config = gestureConfig[gestureName];
+                        if (config) {
+                            speak(config.phrase);
+                            lastSpokenHand = { phrase: config.phrase, time: now };
+                        }
+                    }
+
+                    updateHandUI(gestureName);
+                } else if (!gestureName && gestureHistory.filter(h => h.name === null).length >= 6) {
+                    // Tangan hilang cukup lama
+                    if (currentGesture) {
+                        currentGesture = null;
+                        updateHandUI(null);
+                    }
+                }
+            }
+
+            function updateFaceUI(expressionName) {
+                const config = expressionConfig[expressionName];
+                if (!config) return;
+
+                valFace.textContent = config.phrase;
+                cardFace.querySelector('.emoji').textContent = config.emoji;
+                badgeFace.textContent = config.emoji + ' ' + config.phrase;
+                badgeFace.style.display = 'inline-block';
+                badgeFace.style.background = config.badgeColor + '33';
+                badgeFace.style.borderColor = config.badgeColor;
+                badgeFace.style.color = '#fff';
+                cardFace.style.borderColor = config.badgeColor;
+                cardFace.classList.add('active-card');
+
+                // Reset setelah beberapa detik
+                clearTimeout(window._faceUITimeout);
+                window._faceUITimeout = setTimeout(() => {
+                    cardFace.classList.remove('active-card');
+                    cardFace.style.borderColor = 'var(--border)';
+                    badgeFace.style.borderColor = 'rgba(255,255,255,0.2)';
+                    badgeFace.style.background = 'rgba(20,20,40,0.85)';
+                }, 3000);
+            }
+
+            function updateHandUI(gestureName) {
+                if (!gestureName) {
+                    valHand.textContent = 'Belum terdeteksi';
+                    cardHand.querySelector('.emoji').textContent = '✋';
+                    badgeHand.style.display = 'none';
+                    cardHand.classList.remove('active-card');
+                    cardHand.style.borderColor = 'var(--border)';
+                    return;
+                }
+
+                const config = gestureConfig[gestureName];
+                if (!config) return;
+
+                valHand.textContent = config.phrase;
+                cardHand.querySelector('.emoji').textContent = config.emoji;
+                badgeHand.textContent = config.emoji + ' ' + config.phrase;
+                badgeHand.style.display = 'inline-block';
+                badgeHand.style.background = config.badgeColor + '33';
+                badgeHand.style.borderColor = config.badgeColor;
+                badgeHand.style.color = '#fff';
+                cardHand.style.borderColor = config.badgeColor;
+                cardHand.classList.add('active-card');
+
+                clearTimeout(window._handUITimeout);
+                window._handUITimeout = setTimeout(() => {
+                    cardHand.classList.remove('active-card');
+                    cardHand.style.borderColor = 'var(--border)';
+                    badgeHand.style.borderColor = 'rgba(255,255,255,0.2)';
+                    badgeHand.style.background = 'rgba(20,20,40,0.85)';
+                }, 3000);
+            }
+
+            // ==================== RENDER LOOP ====================
+            function renderLoop() {
+                if (!isRunning) {
+                    requestAnimationFrame(renderLoop);
+                    return;
+                }
+
+                const w = overlay.width;
+                const h = overlay.height;
+                ctx.clearRect(0, 0, w, h);
+
+                // Gambar overlay tangan
+                const handResults = window._lastHandResults;
+                if (handResults && handResults.multiHandLandmarks) {
+                    for (const landmarks of handResults.multiHandLandmarks) {
+                        drawHandLandmarks(ctx, landmarks, w, h);
+                    }
+                }
+
+                // Gambar bounding box wajah (disimpan dari face detection)
+                if (window._lastFaceBox) {
+                    const box = window._lastFaceBox;
+                    ctx.strokeStyle = '#00cec9';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([8, 4]);
+                    ctx.strokeRect(box.x * w, box.y * h, box.width * w, box.height * h);
+                    ctx.setLineDash([]);
+                    ctx.lineWidth = 1;
+
+                    // Glow effect
+                    ctx.shadowColor = 'rgba(0,206,201,0.6)';
+                    ctx.shadowBlur = 15;
+                    ctx.strokeStyle = 'rgba(0,206,201,0.5)';
+                    ctx.strokeRect(box.x * w, box.y * h, box.width * w, box.height * h);
+                    ctx.shadowBlur = 0;
+                }
+
+                requestAnimationFrame(renderLoop);
+            }
+
+            function drawHandLandmarks(ctx, landmarks, w, h) {
+                // Gambar connections
+                const connections = [
+                    [0, 1],
+                    [1, 2],
+                    [2, 3],
+                    [3, 4], // Thumb
+                    [0, 5],
+                    [5, 6],
+                    [6, 7],
+                    [7, 8], // Index
+                    [0, 9],
+                    [9, 10],
+                    [10, 11],
+                    [11, 12], // Middle
+                    [0, 13],
+                    [13, 14],
+                    [14, 15],
+                    [15, 16], // Ring
+                    [0, 17],
+                    [17, 18],
+                    [18, 19],
+                    [19, 20], // Pinky
+                    [5, 9],
+                    [9, 13],
+                    [13, 17], // Palm connections
+                ];
+
+                ctx.strokeStyle = 'rgba(0,206,201,0.8)';
+                ctx.lineWidth = 2.5;
+                ctx.shadowColor = 'rgba(0,206,201,0.5)';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                for (const [i, j] of connections) {
+                    const a = landmarks[i];
+                    const b = landmarks[j];
+                    ctx.moveTo(a.x * w, a.y * h);
+                    ctx.lineTo(b.x * w, b.y * h);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Gambar titik landmark
+                for (const lm of landmarks) {
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(lm.x * w, lm.y * h, 5, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.fillStyle = '#00cec9';
+                    ctx.beginPath();
+                    ctx.arc(lm.x * w, lm.y * h, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+
+            // ==================== MAIN LOOP ====================
+            async function detectionLoop() {
+                if (!isRunning || !videoReady) return;
+
+                // Face detection (setiap ~350ms)
+                const now = Date.now();
+                if (!window._lastFaceDetectionTime || now - window._lastFaceDetectionTime > 350) {
+                    window._lastFaceDetectionTime = now;
+                    const faceResult = await detectFace();
+                    if (faceResult) {
+                        window._lastFaceBox = {
+                            x: faceResult.box.x / video.videoWidth,
+                            y: faceResult.box.y / video.videoHeight,
+                            width: faceResult.box.width / video.videoWidth,
+                            height: faceResult.box.height / video.videoHeight,
+                        };
+                        updateExpressionState(faceResult.expression);
+                    } else {
+                        window._lastFaceBox = null;
+                        // Tidak ada wajah terdeteksi
+                        if (currentExpression) {
+                            expressionHistory.push({ name: null, time: now });
+                            expressionHistory = expressionHistory.filter(h => now - h.time < HISTORY_WINDOW);
+                            if (expressionHistory.filter(h => h.name === null).length >= 5) {
+                                currentExpression = null;
+                                valFace.textContent = 'Tidak terdeteksi';
+                                cardFace.querySelector('.emoji').textContent = '😶';
+                                badgeFace.style.display = 'none';
+                                cardFace.classList.remove('active-card');
+                                cardFace.style.borderColor = 'var(--border)';
+                            }
+                        }
+                    }
+                }
+
+                // Proses frame untuk hands
+                if (handsInstance && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+                    lastVideoTime = video.currentTime;
+                    try {
+                        await handsInstance.send({ image: video });
+                    } catch (e) {
+                        // Silent
+                    }
+                }
+
+                // Jadwalkan loop berikutnya
+                setTimeout(() => detectionLoop(), 50);
+            }
+
+            // ==================== INITIALIZATION ====================
+            async function setupCamera() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            frameRate: { ideal: 30 },
+                        },
+                        audio: false,
+                    });
+                    video.srcObject = stream;
+                    await video.play();
+
+                    // Tunggu video siap
+                    await new Promise((resolve) => {
+                        const checkReady = () => {
+                            if (video.readyState >= 2 && video.videoWidth > 0) {
+                                resolve();
+                            } else {
+                                requestAnimationFrame(checkReady);
+                            }
+                        };
+                        checkReady();
+                    });
+
+                    // Set ukuran canvas
+                    const container = document.getElementById('mainContainer');
+                    const rect = container.getBoundingClientRect();
+                    overlay.width = video.videoWidth;
+                    overlay.height = video.videoHeight;
+
+                    videoReady = true;
+                    console.log('✅ Camera ready:', video.videoWidth, 'x', video.videoHeight);
+                    return true;
+                } catch (err) {
+                    console.error('❌ Gagal akses kamera:', err);
+                    if (err.name === 'NotAllowedError') {
+                        showToast('⚠️ Izin kamera ditolak. Buka pengaturan browser.');
+                    } else if (err.name === 'NotFoundError') {
+                        showToast('⚠️ Kamera tidak ditemukan.');
+                    } else {
+                        showToast('⚠️ Gagal mengakses kamera.');
+                    }
+                    return false;
+                }
+            }
+
+            async function startApp() {
+                if (isRunning) return;
+
+                btnStart.classList.add('loading');
+                btnStart.disabled = true;
+                btnStart.innerHTML = '<span class="spinner"></span> Memuat...';
+                showToast('🔧 Memuat model AI & kamera...');
+
+                try {
+                    // Load models parallel
+                    const [faceOk, handsOk, cameraOk] = await Promise.all([
+                        loadFaceModels(),
+                        initHands().then(h => { handsInstance = h; return true; }).catch(e => {
+                            console.error('Hands init error:', e);
+                            return false;
+                        }),
+                        setupCamera(),
+                    ]);
+
+                    if (!cameraOk) {
+                        throw new Error('Kamera tidak tersedia');
+                    }
+                    if (!faceOk) {
+                        showToast('⚠️ Model wajah gagal dimuat, hanya deteksi tangan yang aktif');
+                    }
+                    if (!handsOk) {
+                        showToast('⚠️ Model tangan gagal dimuat, hanya deteksi wajah yang aktif');
+                    }
+                    if (!faceOk && !handsOk) {
+                        throw new Error('Semua model gagal dimuat');
+                    }
+
+                    modelsLoaded = true;
+                    isRunning = true;
+                    videoReady = true;
+
+                    // Mulai loop
+                    lastVideoTime = -1;
+                    window._lastFaceDetectionTime = 0;
+                    window._lastFaceBox = null;
+                    window._lastHandResults = null;
+                    expressionHistory = [];
+                    gestureHistory = [];
+                    currentExpression = null;
+                    currentGesture = null;
+                    lastSpokenFace = { phrase: '', time: 0 };
+                    lastSpokenHand = { phrase: '', time: 0 };
+
+                    detectionLoop();
+                    renderLoop();
+
+                    // Update UI
+                    btnStart.innerHTML = '✅ DETEKSI BERJALAN';
+                    btnStart.classList.remove('loading');
+                    btnStart.style.background = 'linear-gradient(135deg, #00b894, #00cec9)';
+                    voiceText.textContent = 'Siap mendeteksi...';
+                    voiceIndicator.classList.remove('speaking');
+                    showToast('✅ Sistem siap! Tunjukkan wajah atau tanganmu.');
+
+                    // Preload voices
+                    if ('speechSynthesis' in window) {
+                        window.speechSynthesis.getVoices();
+                        window.speechSynthesis.onvoiceschanged = () => {
+                            window.speechSynthesis.getVoices();
+                        };
+                    }
+
+                } catch (err) {
+                    console.error('Start error:', err);
+                    showToast('❌ Gagal memulai: ' + err.message);
+                    btnStart.classList.remove('loading');
+                    btnStart.disabled = false;
+                    btnStart.innerHTML = '🎤 MULAI DETEKSI';
+                    btnStart.style.background = 'linear-gradient(135deg, #6c5ce7, #5a4bd1)';
+                    isRunning = false;
+                }
+            }
+
+            // ==================== RESIZE HANDLER ====================
+            function handleResize() {
+                if (videoReady && video.videoWidth > 0) {
+                    // Canvas size tetap mengikuti video
+                    overlay.width = video.videoWidth;
+                    overlay.height = video.videoHeight;
+                }
+            }
+            window.addEventListener('resize', handleResize);
+            window.addEventListener('orientationchange', () => {
+                setTimeout(handleResize, 500);
+            });
+
+            // ==================== KEYBOARD SHORTCUT ====================
+            window.addEventListener('keydown', (e) => {
+                if (e.key === ' ' && !isRunning) {
+                    e.preventDefault();
+                    startApp();
+                }
+                if (e.key === 'm' && isRunning) {
+                    // Mute/unmute voice (toggle)
+                    if (window.speechSynthesis.speaking) {
+                        window.speechSynthesis.cancel();
+                        voiceIndicator.classList.remove('speaking');
+                        voiceText.textContent = '🔇 Voice dimatikan sementara';
+                        showToast('🔇 Suara dihentikan');
+                    }
+                }
+            });
+
+            // ==================== INITIAL STATE ====================
+            voiceText.textContent = 'Klik "MULAI DETEKSI" untuk memulai';
+            badgeFace.style.display = 'none';
+            badgeHand.style.display = 'none';
+
+            // Pre-warm speech synthesis
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.getVoices();
+            }
+
+            console.log('🚀 App siap. Klik tombol MULAI DETEKSI untuk memulai.');
+            console.log('📋 Ekspresi wajah yang dideteksi: happy, sad, angry, surprised, fearful, disgusted, neutral');
+            console.log('📋 Gerakan tangan yang dideteksi: fist, open_hand, peace, thumbs_up, pointing, ok_sign, rock_on, three_fingers');
+            console.log('💡 Tips: Tekan SPASI untuk mulai, tekan M untuk menghentikan suara');
+            console.log('📱 Pastikan kamera menghadap wajah & tangan terlihat jelas');
+
+        })();
+    </script>
+</body>
+</html>
